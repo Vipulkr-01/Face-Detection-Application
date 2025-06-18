@@ -21,6 +21,10 @@ export const FaceGallery = ({ faces }: FaceGalleryProps) => {
     document.body.removeChild(link);
   };
 
+  const handleViewImage = (face: DetectedFace) => {
+    window.open(face.imageData, '_blank');
+  };
+
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString();
   };
@@ -39,7 +43,15 @@ export const FaceGallery = ({ faces }: FaceGalleryProps) => {
                   onClick={() => setSelectedFace(face)}
                 />
                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                  <Button size="sm" variant="secondary" className="mr-1">
+                  <Button 
+                    size="sm" 
+                    variant="secondary" 
+                    className="mr-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewImage(face);
+                    }}
+                  >
                     <Eye className="w-3 h-3" />
                   </Button>
                   <Button
