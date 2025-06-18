@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +21,52 @@ export const FaceGallery = ({ faces }: FaceGalleryProps) => {
   };
 
   const handleViewImage = (face: DetectedFace) => {
-    window.open(face.imageData, '_blank');
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>Detected Face - ${face.timestamp}</title>
+            <style>
+              body { 
+                margin: 0; 
+                padding: 20px; 
+                background: #f0f0f0; 
+                display: flex; 
+                justify-content: center; 
+                align-items: center; 
+                min-height: 100vh;
+                font-family: Arial, sans-serif;
+              }
+              img { 
+                max-width: 100%; 
+                max-height: 100vh; 
+                object-fit: contain;
+                border-radius: 8px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+              }
+              .container {
+                text-align: center;
+              }
+              .info {
+                margin-top: 20px;
+                color: #666;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <img src="${face.imageData}" alt="Detected Face" />
+              <div class="info">
+                <p>Detected at: ${formatTimestamp(face.timestamp)}</p>
+                ${face.confidence ? `<p>Confidence: ${Math.round(face.confidence * 100)}%</p>` : ''}
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    }
   };
 
   const formatTimestamp = (timestamp: string) => {
