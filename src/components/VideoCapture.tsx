@@ -9,10 +9,11 @@ import { DetectedFace } from '@/types/face-detection';
 interface VideoCaptureProps {
   source: 'webcam' | 'file';
   onFaceDetected: (face: DetectedFace) => void;
+  onFaceCountUpdate: (count: number) => void;
   isActive: boolean;
 }
 
-export const VideoCapture = ({ source, onFaceDetected, isActive }: VideoCaptureProps) => {
+export const VideoCapture = ({ source, onFaceDetected, onFaceCountUpdate, isActive }: VideoCaptureProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -23,6 +24,12 @@ export const VideoCapture = ({ source, onFaceDetected, isActive }: VideoCaptureP
   useEffect(() => {
     if (isActive && source === 'webcam') {
       startWebcam();
+    } else if (!isActive) {
+      stopDetection();
+      if (videoRef.current && source === 'webcam') {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
     }
     
     return () => {
@@ -83,6 +90,7 @@ export const VideoCapture = ({ source, onFaceDetected, isActive }: VideoCaptureP
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
+    onFaceCountUpdate(0);
   };
 
   const detectAndDrawFaces = async () => {
@@ -104,6 +112,9 @@ export const VideoCapture = ({ source, onFaceDetected, isActive }: VideoCaptureP
     try {
       // Detect faces
       const faces = await detectFaces(canvas);
+      
+      // Update current face count
+      onFaceCountUpdate(faces.length);
       
       // Draw bounding boxes
       ctx.strokeStyle = '#00ff00';
@@ -163,40 +174,40 @@ export const VideoCapture = ({ source, onFaceDetected, isActive }: VideoCaptureP
         />
       </div>
 
-      <div className="flex gap-2 items-center">
-        {source === 'file' && (
-          <>
-            <Input
-              ref={fileInputRef}
-              type="file"
-              accept="video/*"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              variant="outline"
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Select Video
-            </Button>
-          </>
-        )}
+      {source === 'file' && (
+        <div className="flex gap-2 items-center">
+          <Input
+            ref={fileInputRef}
+            type="file"
+            accept="video/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            variant="outline"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Select Video File
+          </Button>
 
-        <Button onClick={togglePlayback} variant="outline">
-          {isPlaying ? (
-            <>
-              <Pause className="w-4 h-4 mr-2" />
-              Pause
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4 mr-2" />
-              Play
-            </>
+          {videoRef.current?.src && (
+            <Button onClick={togglePlayback} variant="outline">
+              {isPlaying ? (
+                <>
+                  <Pause className="w-4 h-4 mr-2" />
+                  Pause
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 mr-2" />
+                  Play
+                </>
+              )}
+            </Button>
           )}
-        </Button>
-      </div>
+        </div>
+      )}
     </div>
   );
 };
