@@ -1,39 +1,54 @@
+
 import { DetectedFace } from '@/types/face-detection';
+import { FaceDetectionConfig } from '@/types/face-detection-internal';
+import { isSkinRegion } from './skinDetection';
+import { expandBoundingBox, hasSignificantOverlap } from './boundingBoxUtils';
+import { findFaceBounds } from './faceRegionDetection';
+
+// Default configuration for face detection
+const DEFAULT_CONFIG: FaceDetectionConfig = {
+  minFaceSize: 40,
+  maxFaceSize: 250,
+  scanStepSize: 15,
+  skinThreshold: 0.25,
+  expandFactor: 1.5
+};
 
 // Simple face detection using a basic algorithm
 // In a real application, you would use MediaPipe, TensorFlow.js, or OpenCV.js
-export const detectFaces = async (canvas: HTMLCanvasElement): Promise<DetectedFace[]> => {
+export const detectFaces = async (
+  canvas: HTMLCanvasElement,
+  config: Partial<FaceDetectionConfig> = {}
+): Promise<DetectedFace[]> => {
   const ctx = canvas.getContext('2d');
   if (!ctx) return [];
+
+  // Merge with default configuration
+  const finalConfig = { ...DEFAULT_CONFIG, ...config };
 
   // Get image data
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
-  // Simple face detection algorithm using skin tone detection
-  // This is a basic implementation for demonstration purposes
   const faces: DetectedFace[] = [];
-  const minFaceSize = 40; // Reduced back to be more sensitive
-  const maxFaceSize = 250; // Slightly reduced but still larger than original
   
-  // Scan the image in a grid pattern with smaller steps for better detection
-  for (let y = 0; y < canvas.height - minFaceSize; y += 15) {
-    for (let x = 0; x < canvas.width - minFaceSize; x += 15) {
+  // Scan the image in a grid pattern with configurable steps for better detection
+  for (let y = 0; y < canvas.height - finalConfig.minFaceSize; y += finalConfig.scanStepSize) {
+    for (let x = 0; x < canvas.width - finalConfig.minFaceSize; x += finalConfig.scanStepSize) {
       // Check for skin-like colors in this region
-      if (isSkinRegion(data, x, y, minFaceSize, canvas.width, canvas.height)) {
+      if (isSkinRegion(data, x, y, finalConfig.minFaceSize, canvas.width, canvas.height, finalConfig.skinThreshold)) {
         // Find the bounds of this face-like region
-        const bounds = findFaceBounds(data, x, y, canvas.width, canvas.height, maxFaceSize);
+        const bounds = findFaceBounds(data, x, y, canvas.width, canvas.height, finalConfig.maxFaceSize);
         
-        if (bounds && bounds.width >= minFaceSize && bounds.height >= minFaceSize) {
+        if (bounds && bounds.width >= finalConfig.minFaceSize && bounds.height >= finalConfig.minFaceSize) {
           // Avoid duplicate detections by checking if this overlaps with existing faces
           const overlap = faces.some(face => 
-            Math.abs(face.boundingBox.x - bounds.x) < bounds.width / 2 &&
-            Math.abs(face.boundingBox.y - bounds.y) < bounds.height / 2
+            hasSignificantOverlap(face.boundingBox, bounds)
           );
           
           if (!overlap) {
             // Expand the bounding box to capture more of the face and surrounding area
-            const expandedBounds = expandBoundingBox(bounds, canvas.width, canvas.height);
+            const expandedBounds = expandBoundingBox(bounds, canvas.width, canvas.height, finalConfig.expandFactor);
             
             faces.push({
               id: `face_${Date.now()}_${Math.random()}`,
@@ -49,176 +64,4 @@ export const detectFaces = async (canvas: HTMLCanvasElement): Promise<DetectedFa
   }
   
   return faces;
-};
-
-// Expand bounding box to capture more complete face
-const expandBoundingBox = (
-  bounds: { x: number; y: number; width: number; height: number },
-  canvasWidth: number,
-  canvasHeight: number
-) => {
-  // Expand by 50% in each direction to capture full face
-  const expandFactor = 1.5;
-  const newWidth = Math.min(bounds.width * expandFactor, canvasWidth);
-  const newHeight = Math.min(bounds.height * expandFactor, canvasHeight);
-  
-  // Center the expanded box around the original detection
-  const newX = Math.max(0, bounds.x - (newWidth - bounds.width) / 2);
-  const newY = Math.max(0, bounds.y - (newHeight - bounds.height) / 2);
-  
-  // Ensure we don't go outside canvas bounds
-  const finalX = Math.min(newX, canvasWidth - newWidth);
-  const finalY = Math.min(newY, canvasHeight - newHeight);
-  
-  return {
-    x: Math.round(finalX),
-    y: Math.round(finalY),
-    width: Math.round(newWidth),
-    height: Math.round(newHeight)
-  };
-};
-
-// Check if a region contains skin-like colors
-const isSkinRegion = (
-  data: Uint8ClampedArray,
-  x: number,
-  y: number,
-  size: number,
-  width: number,
-  height: number
-): boolean => {
-  let skinPixels = 0;
-  let totalPixels = 0;
-  
-  for (let dy = 0; dy < size && y + dy < height; dy += 3) { // Reduced step size for better detection
-    for (let dx = 0; dx < size && x + dx < width; dx += 3) {
-      const index = ((y + dy) * width + (x + dx)) * 4;
-      const r = data[index];
-      const g = data[index + 1];
-      const b = data[index + 2];
-      
-      if (isSkinColor(r, g, b)) {
-        skinPixels++;
-      }
-      totalPixels++;
-    }
-  }
-  
-  return skinPixels / totalPixels > 0.25; // Slightly reduced threshold for better detection
-};
-
-// Simple skin color detection
-const isSkinColor = (r: number, g: number, b: number): boolean => {
-  // Basic skin color detection in RGB space
-  return (
-    r > 95 && g > 40 && b > 20 &&
-    r > g && r > b &&
-    Math.abs(r - g) > 15 &&
-    (r - g) > 15
-  );
-};
-
-// Find the bounds of a face-like region
-const findFaceBounds = (
-  data: Uint8ClampedArray,
-  startX: number,
-  startY: number,
-  width: number,
-  height: number,
-  maxSize: number
-): { x: number; y: number; width: number; height: number } | null => {
-  let minX = startX;
-  let maxX = startX;
-  let minY = startY;
-  let maxY = startY;
-  
-  // Expand the region while we find skin-like pixels
-  let expanded = true;
-  let iterations = 0;
-  
-  while (expanded && iterations < 20) {
-    expanded = false;
-    iterations++;
-    
-    // Try to expand in each direction
-    if (minX > 0) {
-      let foundSkin = false;
-      for (let y = minY; y <= maxY; y += 3) {
-        const index = (y * width + (minX - 1)) * 4;
-        if (isSkinColor(data[index], data[index + 1], data[index + 2])) {
-          foundSkin = true;
-          break;
-        }
-      }
-      if (foundSkin) {
-        minX--;
-        expanded = true;
-      }
-    }
-    
-    if (maxX < width - 1) {
-      let foundSkin = false;
-      for (let y = minY; y <= maxY; y += 3) {
-        const index = (y * width + (maxX + 1)) * 4;
-        if (isSkinColor(data[index], data[index + 1], data[index + 2])) {
-          foundSkin = true;
-          break;
-        }
-      }
-      if (foundSkin) {
-        maxX++;
-        expanded = true;
-      }
-    }
-    
-    if (minY > 0) {
-      let foundSkin = false;
-      for (let x = minX; x <= maxX; x += 3) {
-        const index = ((minY - 1) * width + x) * 4;
-        if (isSkinColor(data[index], data[index + 1], data[index + 2])) {
-          foundSkin = true;
-          break;
-        }
-      }
-      if (foundSkin) {
-        minY--;
-        expanded = true;
-      }
-    }
-    
-    if (maxY < height - 1) {
-      let foundSkin = false;
-      for (let x = minX; x <= maxX; x += 3) {
-        const index = ((maxY + 1) * width + x) * 4;
-        if (isSkinColor(data[index], data[index + 1], data[index + 2])) {
-          foundSkin = true;
-          break;
-        }
-      }
-      if (foundSkin) {
-        maxY++;
-        expanded = true;
-      }
-    }
-    
-    // Stop if the region gets too large
-    if (maxX - minX > maxSize || maxY - minY > maxSize) {
-      break;
-    }
-  }
-  
-  const faceWidth = maxX - minX;
-  const faceHeight = maxY - minY;
-  
-  // Make the region more square (faces are typically wider than they are tall)
-  const size = Math.max(faceWidth, faceHeight);
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-  
-  return {
-    x: Math.max(0, Math.round(centerX - size / 2)),
-    y: Math.max(0, Math.round(centerY - size / 2)),
-    width: Math.min(size, width),
-    height: Math.min(size, height)
-  };
 };
