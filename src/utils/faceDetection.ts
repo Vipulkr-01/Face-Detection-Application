@@ -13,12 +13,12 @@ export const detectFaces = async (canvas: HTMLCanvasElement): Promise<DetectedFa
   // Simple face detection algorithm using skin tone detection
   // This is a basic implementation for demonstration purposes
   const faces: DetectedFace[] = [];
-  const minFaceSize = 60; // Increased minimum face size
-  const maxFaceSize = 300; // Increased maximum face size
+  const minFaceSize = 40; // Reduced back to be more sensitive
+  const maxFaceSize = 250; // Slightly reduced but still larger than original
   
-  // Scan the image in a grid pattern
-  for (let y = 0; y < canvas.height - minFaceSize; y += 30) {
-    for (let x = 0; x < canvas.width - minFaceSize; x += 30) {
+  // Scan the image in a grid pattern with smaller steps for better detection
+  for (let y = 0; y < canvas.height - minFaceSize; y += 15) {
+    for (let x = 0; x < canvas.width - minFaceSize; x += 15) {
       // Check for skin-like colors in this region
       if (isSkinRegion(data, x, y, minFaceSize, canvas.width, canvas.height)) {
         // Find the bounds of this face-like region
@@ -90,8 +90,8 @@ const isSkinRegion = (
   let skinPixels = 0;
   let totalPixels = 0;
   
-  for (let dy = 0; dy < size && y + dy < height; dy += 5) {
-    for (let dx = 0; dx < size && x + dx < width; dx += 5) {
+  for (let dy = 0; dy < size && y + dy < height; dy += 3) { // Reduced step size for better detection
+    for (let dx = 0; dx < size && x + dx < width; dx += 3) {
       const index = ((y + dy) * width + (x + dx)) * 4;
       const r = data[index];
       const g = data[index + 1];
@@ -104,7 +104,7 @@ const isSkinRegion = (
     }
   }
   
-  return skinPixels / totalPixels > 0.3; // At least 30% skin-like pixels
+  return skinPixels / totalPixels > 0.25; // Slightly reduced threshold for better detection
 };
 
 // Simple skin color detection
