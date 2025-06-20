@@ -131,18 +131,33 @@ export const VideoCapture = ({ source, onFaceDetected, onFaceCountUpdate, isActi
         // Draw label
         ctx.fillText(`Face ${index + 1}`, x, y - 10);
         
-        // Crop and save face
+        // Create expanded crop area for fuller face capture
+        const expandFactor = 2.0; // Increase crop area by 2x
+        const expandedWidth = Math.min(width * expandFactor, canvas.width);
+        const expandedHeight = Math.min(height * expandFactor, canvas.height);
+        
+        // Center the expanded area around the original detection
+        const expandedX = Math.max(0, x - (expandedWidth - width) / 2);
+        const expandedY = Math.max(0, y - (expandedHeight - height) / 2);
+        
+        // Ensure we don't go outside canvas bounds
+        const finalX = Math.min(expandedX, canvas.width - expandedWidth);
+        const finalY = Math.min(expandedY, canvas.height - expandedHeight);
+        const finalWidth = Math.min(expandedWidth, canvas.width - finalX);
+        const finalHeight = Math.min(expandedHeight, canvas.height - finalY);
+        
+        // Crop and save face with expanded area
         const faceCanvas = document.createElement('canvas');
         const faceCtx = faceCanvas.getContext('2d');
         
         if (faceCtx) {
-          faceCanvas.width = width;
-          faceCanvas.height = height;
+          faceCanvas.width = finalWidth;
+          faceCanvas.height = finalHeight;
           
           faceCtx.drawImage(
             video,
-            x, y, width, height,
-            0, 0, width, height
+            finalX, finalY, finalWidth, finalHeight,
+            0, 0, finalWidth, finalHeight
           );
           
           const faceImageData = faceCanvas.toDataURL('image/png');
