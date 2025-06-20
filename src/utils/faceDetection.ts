@@ -1,4 +1,3 @@
-
 import { DetectedFace } from '@/types/face-detection';
 
 // Simple face detection using a basic algorithm
@@ -14,12 +13,12 @@ export const detectFaces = async (canvas: HTMLCanvasElement): Promise<DetectedFa
   // Simple face detection algorithm using skin tone detection
   // This is a basic implementation for demonstration purposes
   const faces: DetectedFace[] = [];
-  const minFaceSize = 30;
-  const maxFaceSize = 200;
+  const minFaceSize = 60; // Increased minimum face size
+  const maxFaceSize = 300; // Increased maximum face size
   
   // Scan the image in a grid pattern
-  for (let y = 0; y < canvas.height - minFaceSize; y += 20) {
-    for (let x = 0; x < canvas.width - minFaceSize; x += 20) {
+  for (let y = 0; y < canvas.height - minFaceSize; y += 30) {
+    for (let x = 0; x < canvas.width - minFaceSize; x += 30) {
       // Check for skin-like colors in this region
       if (isSkinRegion(data, x, y, minFaceSize, canvas.width, canvas.height)) {
         // Find the bounds of this face-like region
@@ -33,11 +32,14 @@ export const detectFaces = async (canvas: HTMLCanvasElement): Promise<DetectedFa
           );
           
           if (!overlap) {
+            // Expand the bounding box to capture more of the face and surrounding area
+            const expandedBounds = expandBoundingBox(bounds, canvas.width, canvas.height);
+            
             faces.push({
               id: `face_${Date.now()}_${Math.random()}`,
               timestamp: new Date().toISOString(),
               imageData: '', // Will be filled by the calling function
-              boundingBox: bounds,
+              boundingBox: expandedBounds,
               confidence: 0.7 + Math.random() * 0.3 // Simulated confidence
             });
           }
@@ -47,6 +49,33 @@ export const detectFaces = async (canvas: HTMLCanvasElement): Promise<DetectedFa
   }
   
   return faces;
+};
+
+// Expand bounding box to capture more complete face
+const expandBoundingBox = (
+  bounds: { x: number; y: number; width: number; height: number },
+  canvasWidth: number,
+  canvasHeight: number
+) => {
+  // Expand by 50% in each direction to capture full face
+  const expandFactor = 1.5;
+  const newWidth = Math.min(bounds.width * expandFactor, canvasWidth);
+  const newHeight = Math.min(bounds.height * expandFactor, canvasHeight);
+  
+  // Center the expanded box around the original detection
+  const newX = Math.max(0, bounds.x - (newWidth - bounds.width) / 2);
+  const newY = Math.max(0, bounds.y - (newHeight - bounds.height) / 2);
+  
+  // Ensure we don't go outside canvas bounds
+  const finalX = Math.min(newX, canvasWidth - newWidth);
+  const finalY = Math.min(newY, canvasHeight - newHeight);
+  
+  return {
+    x: Math.round(finalX),
+    y: Math.round(finalY),
+    width: Math.round(newWidth),
+    height: Math.round(newHeight)
+  };
 };
 
 // Check if a region contains skin-like colors
